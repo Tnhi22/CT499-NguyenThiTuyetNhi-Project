@@ -16,6 +16,7 @@
             </small>
           </div>
           <div class="card-body">
+            <!-- Bộ lọc + tìm kiếm -->
             <div class="row mb-4">
               <div class="col-md-6">
                 <div class="input-group">
@@ -57,6 +58,7 @@
               </div>
             </div>
 
+            <!-- Bảng dữ liệu -->
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead class="table-light">
@@ -139,6 +141,7 @@
               </table>
             </div>
 
+            <!-- Loading -->
             <div v-if="loading" class="text-center py-4">
               <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Đang tải...</span>
@@ -146,6 +149,7 @@
               <p class="mt-2 text-muted">Đang tải danh sách mượn trả sách...</p>
             </div>
 
+            <!-- Phân trang -->
             <div class="row mt-4" v-if="totalItems > 0">
               <div class="col-md-6">
                 <p class="text-muted">
@@ -199,6 +203,7 @@
       </div>
     </div>
 
+    <!-- Modal Mượn sách -->
     <div
       class="modal fade"
       :class="{ show: showBorrowModalState }"
@@ -247,6 +252,7 @@
                     </div>
                   </div>
                 </div>
+
                 <div class="col-md-6">
                   <div class="mb-3">
                     <label for="sach" class="form-label"
@@ -297,6 +303,7 @@
                     </div>
                   </div>
                 </div>
+
                 <div class="col-md-6">
                   <div class="mb-3">
                     <label for="nhanVienMuon" class="form-label"
@@ -358,6 +365,7 @@
       </div>
     </div>
 
+    <!-- Modal Trả sách -->
     <div
       class="modal fade"
       :class="{ show: showReturnModalState }"
@@ -389,6 +397,16 @@
               <p>
                 <strong>Ngày hẹn trả:</strong>
                 {{ formatDate(returningRecord.NgayHenTra) }}
+              </p>
+
+              <!-- Thông tin quá hạn & phí phạt -->
+              <p>
+                <strong>Số ngày quá hạn:</strong>
+                {{ calculateOverdueDays(returningRecord) }} ngày
+              </p>
+              <p>
+                <strong>Phí phạt:</strong>
+                {{ (returnForm.PhiPhat || 0).toLocaleString("vi-VN") }} đ
               </p>
 
               <div class="mb-3">
@@ -446,6 +464,7 @@
       </div>
     </div>
 
+    <!-- Modal Gia hạn -->
     <div
       class="modal fade"
       :class="{ show: showExtendModalState }"
@@ -530,6 +549,7 @@
       </div>
     </div>
 
+    <!-- Modal Chi tiết -->
     <div
       class="modal fade"
       :class="{ show: showDetailsModalState }"
@@ -739,6 +759,7 @@
       </div>
     </div>
 
+    <!-- Backdrop cho modals -->
     <div
       class="modal-backdrop fade show"
       v-if="
@@ -750,6 +771,7 @@
     ></div>
   </div>
 </template>
+
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import api from "../utils/axios.js";
@@ -805,6 +827,7 @@ const borrowForm = ref({
 const returnForm = ref({
   NhanVienTra: currentStaffId, // Current staff ID
   GhiChu: "",
+  PhiPhat: 0, // phí phạt
 });
 
 const extendForm = ref({
@@ -847,6 +870,7 @@ const filteredRecords = computed(() => {
 });
 
 const startIndex = computed(() => (currentPage.value - 1) * itemsPerPage.value);
+
 const endIndex = computed(() => {
   return Math.min(startIndex.value + itemsPerPage.value, totalItems.value);
 });
@@ -882,7 +906,7 @@ const tomorrow = computed(() => {
   return date.toISOString().split("T")[0];
 });
 
-// Methods
+// Methods load data
 const loadRecords = async () => {
   loading.value = true;
 
@@ -951,15 +975,6 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString("vi-VN");
 };
 
-const getStatusBadgeClass = (status) => {
-  const classes = {
-    "Đang mượn": "badge badge-info",
-    "Đã trả": "badge badge-success",
-    "Quá hạn": "badge badge-danger",
-  };
-  return classes[status] || "badge badge-secondary";
-};
-
 const clearSearch = () => {
   searchQuery.value = "";
   statusFilter.value = "";
@@ -980,7 +995,6 @@ const getReaderName = (record) => {
   if (record.MaDocGia && typeof record.MaDocGia === "object") {
     return `${record.MaDocGia.HoLot} ${record.MaDocGia.Ten}`.trim();
   }
-  // For string MaDocGia, find in docGiaList
   const docgia = docGiaList.value.find((d) => d.MaDocGia === record.MaDocGia);
   return docgia
     ? `${docgia.HoLot} ${docgia.Ten}`.trim()
@@ -991,12 +1005,10 @@ const getBookTitle = (record) => {
   if (record.MaSach && typeof record.MaSach === "object") {
     return record.MaSach.TenSach;
   }
-  // For string MaSach, find in sachList
   const sach = sachList.value.find((s) => s.MaSach === record.MaSach);
   return sach ? sach.TenSach : record.MaSach || "N/A";
 };
 
-// Additional helper methods for details modal
 const getDocGiaCode = (record) => {
   if (record.MaDocGia && typeof record.MaDocGia === "object") {
     return record.MaDocGia.MaDocGia || "N/A";
@@ -1008,7 +1020,6 @@ const getDocGiaPhone = (record) => {
   if (record.MaDocGia && typeof record.MaDocGia === "object") {
     return record.MaDocGia.DienThoai || "";
   }
-  // For string MaDocGia, find in docGiaList
   const docgia = docGiaList.value.find((d) => d.MaDocGia === record.MaDocGia);
   return docgia ? docgia.DienThoai : "";
 };
@@ -1024,7 +1035,6 @@ const getSachAuthor = (record) => {
   if (record.MaSach && typeof record.MaSach === "object") {
     return record.MaSach.NguonGoc || "";
   }
-  // For string MaSach, find in sachList
   const sach = sachList.value.find((s) => s.MaSach === record.MaSach);
   return sach ? sach.NguonGoc : "";
 };
@@ -1033,7 +1043,6 @@ const getSachQuantity = (record) => {
   if (record.MaSach && typeof record.MaSach === "object") {
     return record.MaSach.SoQuyen || 0;
   }
-  // For string MaSach, find in sachList
   const sach = sachList.value.find((s) => s.MaSach === record.MaSach);
   return sach ? sach.SoQuyen : 0;
 };
@@ -1063,6 +1072,32 @@ const getStatusClass = (status) => {
     default:
       return "bg-secondary";
   }
+};
+
+// TÍNH QUÁ HẠN & PHÍ PHẠT
+const calculateOverdueDays = (record) => {
+  if (!record?.NgayHenTra) return 0;
+
+  const dueDate = new Date(record.NgayHenTra);
+  const today = new Date();
+
+  // nếu đã có NgayTra (từ backend), dùng NgayTra, còn không thì dùng hôm nay
+  const returnDate = record.NgayTra ? new Date(record.NgayTra) : today;
+
+  // chuẩn hóa 00:00 cho cả hai
+  dueDate.setHours(0, 0, 0, 0);
+  returnDate.setHours(0, 0, 0, 0);
+
+  const diffMs = returnDate.getTime() - dueDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  return diffDays > 0 ? diffDays : 0;
+};
+
+const calculatePenalty = (record) => {
+  const overdueDays = calculateOverdueDays(record);
+  const feePerDay = 5000;
+  return overdueDays * feePerDay;
 };
 
 // Modal methods
@@ -1136,9 +1171,14 @@ const borrowBook = async () => {
 
 const showReturnModal = (record) => {
   returningRecord.value = record;
+
+  // Tính phí phạt mỗi lần mở modal
+  const penalty = calculatePenalty(record);
+
   returnForm.value = {
     NhanVienTra: currentStaffId,
     GhiChu: "",
+    PhiPhat: penalty,
   };
   returnErrors.value = {};
   showReturnModalState.value = true;
@@ -1147,7 +1187,7 @@ const showReturnModal = (record) => {
 const closeReturnModal = () => {
   showReturnModalState.value = false;
   returningRecord.value = null;
-  returnForm.value = { NhanVienTra: currentStaffId, GhiChu: "" };
+  returnForm.value = { NhanVienTra: currentStaffId, GhiChu: "", PhiPhat: 0 };
   returnErrors.value = {};
 };
 
@@ -1261,23 +1301,19 @@ const showExtendModalFromDetails = () => {
   showExtendModal(record);
 };
 
-// Test overdue system
+// Test overdue system (nếu bạn dùng)
 const testOverdueSystem = async () => {
   testingOverdue.value = true;
 
   try {
     console.log("🧪 Testing overdue system...");
-
-    // Call test API
     const response = await api.get("/theodoimuonsach/test-overdue");
 
     if (response.data.success) {
       const data = response.data.data;
 
-      // Show results in console
       console.log("✅ Test results:", data);
 
-      // Show alert with summary
       alert(`🎯 Test kết quả hệ thống quá hạn:
       
 📊 Tổng quan:
@@ -1298,7 +1334,6 @@ ${data.penaltyDetails
 
 ✅ Hệ thống hoạt động bình thường!`);
 
-      // Reload data to show updated results
       await loadRecords();
     } else {
       alert("❌ Lỗi khi test hệ thống: " + response.data.message);
@@ -1311,16 +1346,14 @@ ${data.penaltyDetails
   }
 };
 
-// Watch for search changes
+// Watch
 watch([searchQuery, statusFilter], () => {
   currentPage.value = 1;
 });
 
 // Lifecycle
 onMounted(async () => {
-  // Load reference data first
   await Promise.all([loadDocGia(), loadSach()]);
-  // Then load records
   await loadRecords();
 });
 </script>

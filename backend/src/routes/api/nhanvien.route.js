@@ -149,10 +149,7 @@ router.get(
   requirePermission("quan_ly"),
   catchAsync(NhanVienController.getActive)
 );
-router.get(
-  "/:id",
-  catchAsync(NhanVienController.getById)
-);
+router.get("/:id", catchAsync(NhanVienController.getById));
 
 router.post(
   "/",

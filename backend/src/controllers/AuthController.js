@@ -7,13 +7,15 @@ export default {
     try {
       console.log("Register request body:", req.body);
 
-      const { fullName, password, email, phone, address, birthDate } = req.body;
+      const { fullName, password, email, phone, address, birthDate, ChucVu } =
+        req.body;
 
       const lastEmployee = await NhanVien.findOne(
         {},
         {},
-        { sort: { MSNV: -1 } }
+        { sort: { createdAt: -1 } }
       );
+
       let nextNumber = 1;
       if (
         lastEmployee &&

@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from "vue-router";
 
 // Lazy load components for better performance
 //const Home = () => import("../views/Home.vue");
+const LoginAdmin = () => import("../views/LoginAdmin.vue");
+const RegisterStaff = () => import("../views/RegisterStaff.vue");
 const Login = () => import("../views/Login.vue");
 const Register = () => import("../views/Register.vue");
 const UserList = () => import("../views/UserList.vue");
@@ -51,7 +53,16 @@ const routes = [
   // Auth routes (standalone)
   { path: "/login", name: "Login", component: Login },
   { path: "/register", name: "Register", component: Register },
-
+  {
+    path: "/loginAdmin",
+    name: "LoginAdmin",
+    component: LoginAdmin,
+  },
+  {
+    path: "/registerStaff",
+    name: "RegisterStaff",
+    component: RegisterStaff,
+  },
   // Admin routes with layout
   {
     path: "/admin",
@@ -95,6 +106,7 @@ router.beforeEach((to, from, next) => {
     "/",
     "/login",
     "/register",
+    "/admin/login",
     "/google-callback",
     "/categories",
     "/books",

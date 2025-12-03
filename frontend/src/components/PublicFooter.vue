@@ -144,6 +144,15 @@
                     <i class="fas fa-tags me-2"></i>Nhà xuất bản
                   </router-link>
                 </li>
+
+                <li class="mb-2">
+                  <router-link
+                    to="/about"
+                    class="text-decoration-none text-muted"
+                  >
+                    <i class="fas fa-building me-1"></i>Về chúng tôi
+                  </router-link>
+                </li>
               </ul>
             </div>
             <div class="col-6">
@@ -236,9 +245,9 @@ export default {
             axios
               .get("/nhaxuatban")
               .catch(() => ({ data: { data: [], pagination: { total: 0 } } })),
-            axios
-              .get("/muontra")
-              .catch(() => ({ data: { data: [], pagination: { total: 0 } } })),
+            // axios
+            //   .get("/muontra")
+            //   .catch(() => ({ data: { data: [], pagination: { total: 0 } } })),
           ]);
 
         const getTotal = (res) => {

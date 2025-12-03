@@ -6,23 +6,22 @@
           <div class="card shadow-lg border-0">
             <div class="card-body p-5">
               <div class="text-center mb-4">
-                <h2 class="fw-bold text-primary">Đăng nhập độc giả</h2>
-                <p class="text-muted">Đăng nhập bằng tài khoản của bạn</p>
+                <h2 class="fw-bold text-primary">Đăng nhập nhân viên</h2>
+                <p class="text-muted">Chỉ dành cho tài khoản admin</p>
               </div>
 
               <form @submit.prevent="handleLogin">
                 <div class="mb-3">
-                  <label for="email" class="form-label">Email</label>
+                  <label class="form-label">Mã nhân viên</label>
                   <div class="input-group">
                     <span class="input-group-text">
-                      <i class="fas fa-envelope"></i>
+                      <i class="fas fa-id-badge"></i>
                     </span>
                     <input
-                      v-model="form.email"
-                      type="email"
+                      v-model="form.username"
+                      type="text"
                       class="form-control"
-                      id="email"
-                      placeholder="Nhập email"
+                      placeholder="Nhập mã nhân viên (VD: NV001)"
                       required
                       :disabled="loading"
                     />
@@ -30,7 +29,7 @@
                 </div>
 
                 <div class="mb-3">
-                  <label for="password" class="form-label">Mật khẩu</label>
+                  <label class="form-label">Mật khẩu</label>
                   <div class="input-group">
                     <span class="input-group-text">
                       <i class="fas fa-lock"></i>
@@ -39,7 +38,6 @@
                       v-model="form.password"
                       :type="showPassword ? 'text' : 'password'"
                       class="form-control"
-                      id="password"
                       placeholder="Nhập mật khẩu"
                       required
                       :disabled="loading"
@@ -60,8 +58,7 @@
                 </div>
 
                 <div v-if="error" class="alert alert-danger">
-                  <i class="fas fa-exclamation-circle me-2"></i>
-                  {{ error }}
+                  <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
                 </div>
 
                 <button
@@ -76,49 +73,20 @@
                   {{ loading ? "Đang đăng nhập..." : "Đăng nhập" }}
                 </button>
 
-                <!-- Google login -->
-                <button
-                  type="button"
-                  class="btn btn-danger w-100 py-2 mb-3"
-                  @click="loginWithGoogle"
-                  :disabled="loading"
-                >
-                  <i class="fab fa-google me-2"></i>Đăng nhập với Google
-                </button>
+                <div class="text-center">
+                  <router-link to="/registerStaff" class="text-decoration-none">
+                    <i></i>Đăng ký Staff ngay
+                  </router-link>
+                </div>
 
                 <div class="text-center">
-                  <p class="mb-2">
-                    <router-link
-                      to="/forgot-password"
-                      class="text-decoration-none"
-                    >
-                      Quên mật khẩu?
-                    </router-link>
-                  </p>
-                  <p class="mb-0">
-                    Chưa có tài khoản?
-                    <router-link
-                      to="/register"
-                      class="fw-bold text-decoration-none"
-                    >
-                      Đăng ký ngay
-                    </router-link>
-                  </p>
-                  <router-link
-                    to="/loginAdmin"
-                    class="fw-bold text-decoration-none"
-                  >
-                    Quản trị viên
+                  <router-link to="/" class="text-decoration-none">
+                    <i class="fas fa-arrow-left me-2"></i>Về trang Đăng nhập Độc
+                    Giả
                   </router-link>
                 </div>
               </form>
             </div>
-          </div>
-
-          <div class="text-center mt-3">
-            <router-link to="/" class="text-decoration-none">
-              <i class="fas fa-arrow-left me-2"></i>Về trang chủ
-            </router-link>
           </div>
         </div>
       </div>
@@ -132,10 +100,10 @@ import { useRouter } from "vue-router";
 import { useAuth } from "@/composables/useAuth";
 
 const router = useRouter();
-const { login } = useAuth();
+const { loginStaff } = useAuth();
 
 const form = ref({
-  email: "",
+  username: "",
   password: "",
 });
 
@@ -148,13 +116,13 @@ const handleLogin = async () => {
   error.value = "";
 
   try {
-    const result = await login({
-      email: form.value.email,
+    const result = await loginStaff({
+      username: form.value.username,
       password: form.value.password,
     });
 
     if (result.success) {
-      router.push("/");
+      router.push("/admin");
     } else {
       error.value = result.error || "Đăng nhập thất bại";
     }
@@ -164,14 +132,9 @@ const handleLogin = async () => {
     loading.value = false;
   }
 };
-
-const loginWithGoogle = () => {
-  window.location.href = "http://localhost:3000/api/auth/google";
-};
 </script>
 
 <style scoped>
-/* giữ nguyên y như bạn yêu cầu */
 .login-page {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -179,19 +142,23 @@ const loginWithGoogle = () => {
   align-items: center;
   padding: 2rem 0;
 }
+
 .card {
   border-radius: 1rem;
   backdrop-filter: blur(10px);
 }
+
 .input-group-text {
   background: #f8f9fa;
   border-right: none;
 }
+
 .form-control {
   border-left: none;
 }
-.btn-primary {
-  background: linear-gradient(45deg, #0d6efd, #6610f2);
+
+.btn-success {
+  background: linear-gradient(45deg, #198754, #0f5132);
   border: none;
   border-radius: 0.5rem;
 }

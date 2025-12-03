@@ -4,6 +4,27 @@ import Sach from "../models/Sach.js";
 import NhanVien from "../models/NhanVien.js";
 import { AppError } from "../middlewares/errorHandler.js";
 
+/**
+ * Tính phí phạt dựa trên Ngày hẹn trả và Ngày thực tế (hoặc ngày hiện tại)
+ * - dueDate: Ngày hẹn trả
+ * - returnDate: Ngày trả thực tế (nếu chưa trả thì dùng ngày hiện tại)
+ * - ratePerDay: số tiền phạt / ngày
+ */
+function calculatePenalty(dueDate, returnDate = new Date(), ratePerDay = 5000) {
+  if (!dueDate) return 0;
+
+  const dDue = new Date(dueDate);
+  const dReturn = new Date(returnDate);
+
+  // Nếu chưa quá hạn thì không phạt
+  if (dReturn <= dDue) return 0;
+
+  const diffMs = dReturn - dDue;
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  return diffDays * ratePerDay;
+}
+
 function buildSearchQuery(search) {
   console.log("Building TheoDoiMuonSach search query for:", search);
 
@@ -56,9 +77,12 @@ export default {
   async getAll(req, res) {
     console.log("=== Starting TheoDoiMuonSach getAll function ===");
 
+    // Nếu bạn vẫn muốn dùng hàm model thì giữ lại, còn không có thì bỏ dòng này
     try {
-      await TheoDoiMuonSach.updateOverdueBooks();
-      console.log("✅ Updated overdue books status and penalties");
+      if (typeof TheoDoiMuonSach.updateOverdueBooks === "function") {
+        await TheoDoiMuonSach.updateOverdueBooks();
+        console.log("✅ Updated overdue books status and penalties (model)");
+      }
     } catch (error) {
       console.error("⚠️ Error updating overdue books:", error);
     }
@@ -124,12 +148,27 @@ export default {
     });
 
     console.log("Executing TheoDoiMuonSach query...");
-    const data = await query.lean();
+    let data = await query.lean();
     console.log(
       "Query executed successfully, got",
       data.length,
       "TheoDoiMuonSach items"
     );
+
+    // Enrich data: tính phí phạt tạm thời cho những phiếu quá hạn chưa trả
+    data = data.map((record) => {
+      const penalty = calculatePenalty(
+        record.NgayHenTra,
+        record.NgayTra || new Date()
+      );
+      // Nếu có phí phạt và chưa trả thì set TrangThai hiển thị là 'Quá hạn'
+      const isOverdue = penalty > 0 && record.TrangThai !== "Đã trả";
+      return {
+        ...record,
+        PhiPhat: penalty,
+        TrangThai: isOverdue ? "Quá hạn" : record.TrangThai,
+      };
+    });
 
     const totalPages = Math.ceil(total / limit);
     const paginationInfo = {
@@ -164,7 +203,7 @@ export default {
     query = query.populate("NhanVienMuon", "HoTenNV");
     query = query.populate("NhanVienTra", "HoTenNV");
 
-    const theoDoiMuonSach = await query.lean();
+    let theoDoiMuonSach = await query.lean();
 
     if (!theoDoiMuonSach) {
       throw new AppError(
@@ -173,6 +212,19 @@ export default {
         "THEODOIMUONSACH_NOT_FOUND"
       );
     }
+
+    // Tính phí phạt cho record này (nếu có)
+    const penalty = calculatePenalty(
+      theoDoiMuonSach.NgayHenTra,
+      theoDoiMuonSach.NgayTra || new Date()
+    );
+    const isOverdue = penalty > 0 && theoDoiMuonSach.TrangThai !== "Đã trả";
+
+    theoDoiMuonSach = {
+      ...theoDoiMuonSach,
+      PhiPhat: penalty,
+      TrangThai: isOverdue ? "Quá hạn" : theoDoiMuonSach.TrangThai,
+    };
 
     res.json({
       success: true,
@@ -238,6 +290,8 @@ export default {
       NgayHenTra: new Date(NgayHenTra),
       GhiChu: GhiChu || "",
       NhanVienMuon,
+      TrangThai: "Đang mượn",
+      PhiPhat: 0,
     });
 
     await theoDoiMuonSach.save();
@@ -298,8 +352,15 @@ export default {
       theoDoiMuonSach.GhiChu = GhiChu;
     }
 
+    // Tính phí phạt (nếu trả trễ)
+    const penalty = calculatePenalty(
+      theoDoiMuonSach.NgayHenTra,
+      theoDoiMuonSach.NgayTra
+    );
+    theoDoiMuonSach.PhiPhat = penalty;
+
     await theoDoiMuonSach.save();
-    console.log("Return record updated successfully");
+    console.log("Return record updated successfully với PhiPhat =", penalty);
 
     console.log("Increasing book available quantity...");
     await Sach.findOneAndUpdate(
@@ -366,6 +427,9 @@ export default {
       theoDoiMuonSach.GhiChu = GhiChu;
     }
 
+    // Gia hạn thì reset phí phạt về 0 (nếu có)
+    theoDoiMuonSach.PhiPhat = 0;
+
     await theoDoiMuonSach.save();
     console.log("Due date updated successfully");
 
@@ -396,7 +460,41 @@ export default {
     query = query.populate("NhanVienMuon", "HoTenNV");
     query = query.sort({ NgayHenTra: 1 });
 
-    const overdueBooks = await query.lean();
+    let overdueBooks = await query.lean();
+
+    // Tính & cập nhật phí phạt + trạng thái
+    const idsToUpdate = [];
+    for (const record of overdueBooks) {
+      const penalty = calculatePenalty(record.NgayHenTra, new Date());
+      if (penalty > 0) {
+        idsToUpdate.push({
+          id: record._id,
+          penalty,
+        });
+      }
+    }
+
+    // Cập nhật DB
+    for (const item of idsToUpdate) {
+      await TheoDoiMuonSach.findByIdAndUpdate(item.id, {
+        $set: {
+          PhiPhat: item.penalty,
+          TrangThai: "Quá hạn",
+        },
+      });
+    }
+
+    // Reload lại để trả về dữ liệu mới nhất
+    overdueBooks = await TheoDoiMuonSach.find({
+      TrangThai: { $ne: "Đã trả" },
+      NgayHenTra: { $lt: new Date() },
+    })
+      .populate("MaDocGia", "HoLot Ten DienThoai")
+      .populate("MaSach", "TenSach NguonGoc")
+      .populate("NhanVienMuon", "HoTenNV")
+      .sort({ NgayHenTra: 1 })
+      .lean();
+
     console.log("Found", overdueBooks.length, "overdue books");
 
     res.json({
@@ -415,7 +513,21 @@ export default {
       let query = TheoDoiMuonSach.find({ MaDocGia: req.params.maDocGia });
       query = query.sort({ NgayMuon: -1 });
 
-      const history = await query.lean();
+      let history = await query.lean();
+
+      // Tính phí phạt cho từng record
+      history = history.map((record) => {
+        const penalty = calculatePenalty(
+          record.NgayHenTra,
+          record.NgayTra || new Date()
+        );
+        const isOverdue = penalty > 0 && record.TrangThai !== "Đã trả";
+        return {
+          ...record,
+          PhiPhat: penalty,
+          TrangThai: isOverdue ? "Quá hạn" : record.TrangThai,
+        };
+      });
 
       const maSachList = [...new Set(history.map((record) => record.MaSach))];
 
@@ -502,7 +614,22 @@ export default {
     query = query.populate("NhanVienTra", "HoTenNV");
     query = query.sort({ NgayMuon: -1 });
 
-    const history = await query.lean();
+    let history = await query.lean();
+
+    // Tính phí phạt
+    history = history.map((record) => {
+      const penalty = calculatePenalty(
+        record.NgayHenTra,
+        record.NgayTra || new Date()
+      );
+      const isOverdue = penalty > 0 && record.TrangThai !== "Đã trả";
+      return {
+        ...record,
+        PhiPhat: penalty,
+        TrangThai: isOverdue ? "Quá hạn" : record.TrangThai,
+      };
+    });
+
     console.log("Found", history.length, "borrow records for book");
 
     res.json({
@@ -518,14 +645,33 @@ export default {
     console.log("Manually updating overdue books...");
 
     try {
-      const result = await TheoDoiMuonSach.updateOverdueBooks();
+      // Tự tính & cập nhật ở đây (không phụ thuộc model)
+      const records = await TheoDoiMuonSach.find({
+        TrangThai: { $ne: "Đã trả" },
+        NgayHenTra: { $lt: new Date() },
+      }).lean();
+
+      let updatedCount = 0;
+
+      for (const record of records) {
+        const penalty = calculatePenalty(record.NgayHenTra, new Date());
+        if (penalty > 0) {
+          await TheoDoiMuonSach.findByIdAndUpdate(record._id, {
+            $set: {
+              PhiPhat: penalty,
+              TrangThai: "Quá hạn",
+            },
+          });
+          updatedCount++;
+        }
+      }
 
       res.json({
         success: true,
         message: "Cập nhật sách quá hạn thành công",
         data: {
-          updatedCount: result.updatedCount,
-          totalOverdue: result.overdueBooks,
+          updatedCount,
+          totalOverdue: records.length,
         },
       });
     } catch (error) {
@@ -542,22 +688,38 @@ export default {
     console.log("Testing overdue system...");
 
     try {
-      // Get current overdue books
+      // Tự update trước khi test
+      const records = await TheoDoiMuonSach.find({
+        TrangThai: { $ne: "Đã trả" },
+        NgayHenTra: { $lt: new Date() },
+      }).lean();
+
+      let updatedCount = 0;
+      for (const record of records) {
+        const penalty = calculatePenalty(record.NgayHenTra, new Date());
+        if (penalty > 0) {
+          await TheoDoiMuonSach.findByIdAndUpdate(record._id, {
+            $set: {
+              PhiPhat: penalty,
+              TrangThai: "Quá hạn",
+            },
+          });
+          updatedCount++;
+        }
+      }
+
+      // Lấy lại dữ liệu sau update
       const overdueBooks = await TheoDoiMuonSach.find({
         TrangThai: "Quá hạn",
       })
         .populate("MaDocGia", "HoTen")
         .populate("MaSach", "TenSach");
 
-      // Get books with penalties
       const booksWithPenalties = await TheoDoiMuonSach.find({
         PhiPhat: { $gt: 0 },
       })
         .populate("MaDocGia", "HoTen")
         .populate("MaSach", "TenSach");
-
-      // Update overdue books
-      const updateResult = await TheoDoiMuonSach.updateOverdueBooks();
 
       res.json({
         success: true,
@@ -566,8 +728,8 @@ export default {
           currentOverdueBooks: overdueBooks.length,
           booksWithPenalties: booksWithPenalties.length,
           updateResult: {
-            updatedCount: updateResult.updatedCount,
-            totalOverdue: updateResult.overdueBooks,
+            updatedCount,
+            totalOverdue: records.length,
           },
           overdueDetails: overdueBooks.map((book) => ({
             id: book.MaTheoDoiMuonSach,
@@ -688,6 +850,7 @@ export default {
       GhiChu: GhiChu || "Đăng ký mượn sách từ độc giả",
       TrangThai: "Đang mượn",
       isActivate: 0,
+      PhiPhat: 0,
     });
 
     await theoDoiMuonSach.save();

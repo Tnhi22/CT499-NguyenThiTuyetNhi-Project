@@ -103,6 +103,17 @@
               </router-link>
             </li>
 
+            <li class="nav-item">
+              <router-link
+                to="/about"
+                class="nav-link"
+                :class="{ active: $route.name === 'About' }"
+              >
+                <i class="fas fa-building me-1"></i>
+                Về chúng tôi
+              </router-link>
+            </li>
+
             <!-- Borrow Registration Button - Only for authenticated users -->
             <li class="nav-item" v-if="isAuthenticated">
               <a
@@ -151,7 +162,8 @@
                   class="rounded-circle me-2 user-avatar"
                   @error="handleAvatarError"
                 />
-                <span class="me-2">{{ user.HoLot }} {{ user.Ten }}</span>
+                <span class="me-2"> {{ user.Ten }}</span>
+                <!-- {{ user.HoLot }} -->
               </a>
               <ul
                 class="dropdown-menu dropdown-menu-end"
@@ -275,12 +287,12 @@
               <div class="row mb-3">
                 <div class="col-md-6">
                   <label class="form-label">Độc giả</label>
-                  <input
+                  <!-- <input
                     type="text"
                     class="form-control"
                     :value="user.HoLot && user.Ten"
                     readonly
-                  />
+                  /> -->
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Mã độc giả</label>

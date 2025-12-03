@@ -112,33 +112,28 @@ const NhanVienSchema = new mongoose.Schema(
   }
 );
 
-// Indexes disabled for faster startup - will add back later if needed
-
-// Virtual for work duration
+// Virtual ThoiGianLamViec
 NhanVienSchema.virtual("ThoiGianLamViec").get(function () {
   if (!this.NgayVaoLam) return 0;
   const today = new Date();
   const diffTime = today - this.NgayVaoLam;
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 365.25)); // years
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 365.25));
 });
 
-// Ensure virtual fields are serialized
+// Serialize virtuals & remove password
 NhanVienSchema.set("toJSON", {
   virtuals: true,
   transform: function (doc, ret) {
-    delete ret.Password; // Never return password in JSON
+    delete ret.Password;
     return ret;
   },
 });
 NhanVienSchema.set("toObject", { virtuals: true });
 
-// Pre-save middleware for password hashing
+// Pre-save: hash password
 NhanVienSchema.pre("save", async function (next) {
-  // Only hash password if it's modified
   if (!this.isModified("Password")) return next();
-
   try {
-    // Hash password with salt rounds of 12
     const salt = await bcrypt.genSalt(12);
     this.Password = await bcrypt.hash(this.Password, salt);
     next();
@@ -147,65 +142,44 @@ NhanVienSchema.pre("save", async function (next) {
   }
 });
 
-// Pre-save middleware for name formatting
+// Pre-save: capitalize name
 NhanVienSchema.pre("save", function (next) {
-  // Capitalize name
   if (this.HoTenNV) {
     this.HoTenNV = this.HoTenNV.replace(/\b\w/g, (l) => l.toUpperCase());
   }
   next();
 });
 
-// Instance method to compare password
+// Methods
 NhanVienSchema.methods.comparePassword = async function (candidatePassword) {
-  try {
-    return await bcrypt.compare(candidatePassword, this.Password);
-  } catch (error) {
-    throw error;
-  }
+  return bcrypt.compare(candidatePassword, this.Password);
 };
 
-// Instance method to update last login
 NhanVienSchema.methods.updateLastLogin = function () {
   this.LanDangNhapCuoi = new Date();
   return this.save();
 };
 
-// Instance method to check permission
 NhanVienSchema.methods.hasPermission = function (permission) {
   return this.Quyen.includes(permission) || this.Quyen.includes("quan_ly");
 };
 
-// Static method to find active employees
+// Statics
 NhanVienSchema.statics.findActive = function () {
   return this.find({ TrangThai: "Đang làm việc" });
 };
 
-// Static method for authentication
 NhanVienSchema.statics.authenticate = async function (msnv, password) {
-  try {
-    const nhanVien = await this.findOne({
-      MSNV: msnv.toUpperCase(),
-      TrangThai: "Đang làm việc",
-      isActivate: 1,
-    });
-
-    if (!nhanVien) {
-      return null;
-    }
-
-    const isMatch = await nhanVien.comparePassword(password);
-    if (!isMatch) {
-      return null;
-    }
-
-    // Update last login
-    await nhanVien.updateLastLogin();
-
-    return nhanVien;
-  } catch (error) {
-    throw error;
-  }
+  const nhanVien = await this.findOne({
+    MSNV: msnv.toUpperCase(),
+    TrangThai: "Đang làm việc",
+    isActivate: 1,
+  });
+  if (!nhanVien) return null;
+  const isMatch = await nhanVien.comparePassword(password);
+  if (!isMatch) return null;
+  await nhanVien.updateLastLogin();
+  return nhanVien;
 };
 
 export default mongoose.model("NhanVien", NhanVienSchema);
